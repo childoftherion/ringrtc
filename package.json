@@ -10,11 +10,7 @@
   "main": "./src/node/dist/index.js",
   "types": "./src/node/dist/index.d.ts",
   "files": [
-    "src/node/dist/**/*.js",
-    "src/node/dist/**/*.d.ts",
-    "src/node/scripts/**/*",
-    "src/node/dist/acknowledgments.md",
-    "src/node/build/**/*.node"
+    "src/node/**/*"
   ],
   "scripts": {
     "install": "cd src/node && npm_package_json=\"$(pwd)/package.json\" npm_package_version=$(grep -o '\"version\": \"[^\"]*\"' package.json | cut -d'\"' -f4) node scripts/fetch-prebuild.js"
