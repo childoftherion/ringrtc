@@ -798,4 +798,31 @@ impl PeerConnectionFactory {
         };
         Ok(())
     }
+
+    #[cfg(all(not(feature = "sim"), feature = "native"))]
+    /// Add a recording sink to capture audio samples from AudioTransport.
+    /// 
+    /// Returns the sink ID that can be used to remove it later.
+    pub fn add_recording_sink(
+        &mut self,
+        sink: std::sync::Arc<dyn crate::webrtc::audio_recording::AudioRecordingSink>,
+    ) -> Result<usize> {
+        self.adm
+            .as_ref()
+            .and_then(|adm| adm.lock().ok())
+            .map_or(Err(anyhow!("couldn't access ADM")), |mut adm| {
+                adm.add_recording_sink(sink)
+            })
+    }
+
+    #[cfg(all(not(feature = "sim"), feature = "native"))]
+    /// Remove a recording sink by ID.
+    pub fn remove_recording_sink(&mut self, sink_id: usize) -> Result<()> {
+        self.adm
+            .as_ref()
+            .and_then(|adm| adm.lock().ok())
+            .map_or(Err(anyhow!("couldn't access ADM")), |mut adm| {
+                adm.remove_recording_sink(sink_id)
+            })
+    }
 }

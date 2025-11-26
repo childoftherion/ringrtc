@@ -99,6 +99,8 @@ pub mod webrtc {
     pub mod audio_device_module;
     #[cfg(all(not(feature = "sim"), feature = "native"))]
     pub mod audio_device_module_utils;
+    #[cfg(all(not(feature = "sim"), feature = "native"))]
+    pub mod audio_recording;
     pub mod ice_gatherer;
     #[cfg(feature = "injectable_network")]
     pub mod injectable_network;

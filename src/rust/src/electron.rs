@@ -2329,6 +2329,58 @@ fn setRtcStatsInterval(mut cx: FunctionContext) -> JsResult<JsValue> {
     Ok(cx.undefined().upcast())
 }
 
+#[allow(non_snake_case)]
+fn startCallRecording(mut cx: FunctionContext) -> JsResult<JsValue> {
+    let call_id_high = cx.argument::<JsNumber>(0)?.value(&mut cx) as u64;
+    let call_id_low = cx.argument::<JsNumber>(1)?.value(&mut cx) as u64;
+    let call_id = CallId::new((call_id_high << 32) | call_id_low);
+    
+    with_call_endpoint(&mut cx, |endpoint| {
+        // Create a new recording sink for this call
+        let sink = Arc::new(MediaStreamAudioSink::new(48000));
+        sink.set_active(true);
+        
+        // Add the sink to the ADM
+        let sink_id = endpoint
+            .peer_connection_factory
+            .add_recording_sink(sink.clone())
+            .map_err(|e| anyhow!("Failed to add recording sink: {}", e))?;
+        
+        // Store the sink for this call
+        let mut sinks = endpoint.recording_sinks.lock().unwrap();
+        sinks.insert(call_id, (sink, sink_id));
+        
+        Ok(())
+    })
+    .or_else(|err: anyhow::Error| cx.throw_error(format!("{}", err)))?;
+    
+    Ok(cx.undefined().upcast())
+}
+
+#[allow(non_snake_case)]
+fn stopCallRecording(mut cx: FunctionContext) -> JsResult<JsValue> {
+    let call_id_high = cx.argument::<JsNumber>(0)?.value(&mut cx) as u64;
+    let call_id_low = cx.argument::<JsNumber>(1)?.value(&mut cx) as u64;
+    let call_id = CallId::new((call_id_high << 32) | call_id_low);
+    
+    with_call_endpoint(&mut cx, |endpoint| {
+        // Remove the sink for this call
+        let mut sinks = endpoint.recording_sinks.lock().unwrap();
+        if let Some((sink, sink_id)) = sinks.remove(&call_id) {
+            sink.set_active(false);
+            endpoint
+                .peer_connection_factory
+                .remove_recording_sink(sink_id)
+                .map_err(|e| anyhow!("Failed to remove recording sink: {}", e))?;
+        }
+        
+        Ok(())
+    })
+    .or_else(|err: anyhow::Error| cx.throw_error(format!("{}", err)))?;
+    
+    Ok(cx.undefined().upcast())
+}
+
 fn devices_to_js_array<'a>(
     cx: &mut FunctionContext<'a>,
     devices: Vec<Option<AudioDevice>>,

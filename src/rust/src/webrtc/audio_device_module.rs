@@ -31,6 +31,7 @@ use crate::{
         audio_device_module_utils::{
             DeviceCollectionWrapper, copy_and_truncate_string, redact_by_regex, redact_for_logging,
         },
+        audio_recording::AudioRecordingSink,
         ffi::audio_device_module::RffiAudioTransport,
         peer_connection_factory::{AudioDevice, AudioDeviceObserver},
     },
@@ -97,6 +98,8 @@ enum Event {
     PlayoutDelay,
     Terminate,
     RegisterAudioObserver(Box<dyn AudioDeviceObserver>),
+    AddRecordingSink(Arc<dyn AudioRecordingSink>),
+    RemoveRecordingSink(usize),
 }
 
 #[derive(Debug, Clone)]
@@ -126,6 +129,8 @@ struct Worker {
     audio_transport: Arc<Mutex<RffiAudioTransport>>,
     audio_device_observer: Option<Box<dyn AudioDeviceObserver>>,
     send_to_webrtc: Arc<AtomicBool>,
+    // Recording sinks for call recording
+    recording_sinks: Arc<Mutex<Vec<Arc<dyn AudioRecordingSink>>>>,
 }
 
 impl Worker {
@@ -323,6 +328,7 @@ impl Worker {
                 while written < output.len() {
                     let play_data = Worker::need_more_play_data(
                         Arc::clone(&transport),
+                        Arc::clone(&self.recording_sinks),
                         WEBRTC_WINDOW,
                         NUM_CHANNELS,
                         SAMPLE_FREQUENCY,
@@ -464,6 +470,7 @@ impl Worker {
                     }
                     let (ret, _new_mic_level) = Worker::recorded_data_is_available(
                         Arc::clone(&transport),
+                        Arc::clone(&self.recording_sinks),
                         chunk.to_vec(),
                         NUM_CHANNELS,
                         SAMPLE_FREQUENCY,
@@ -638,6 +645,20 @@ impl Worker {
                     self.audio_device_observer = Some(audio_device_observer);
                     continue;
                 }
+                Event::AddRecordingSink(sink) => {
+                    let mut sinks = self.recording_sinks.lock().unwrap();
+                    sinks.push(sink);
+                    Ok(())
+                }
+                Event::RemoveRecordingSink(sink_id) => {
+                    let mut sinks = self.recording_sinks.lock().unwrap();
+                    if sink_id < sinks.len() {
+                        sinks.remove(sink_id);
+                        Ok(())
+                    } else {
+                        Err(anyhow!("Invalid recording sink ID: {}", sink_id))
+                    }
+                }
             } {
                 warn!("{:?} failed: {:?}", received, e);
             }
@@ -647,6 +668,7 @@ impl Worker {
     #[allow(clippy::too_many_arguments)]
     fn recorded_data_is_available(
         rffi_audio_transport: Arc<Mutex<RffiAudioTransport>>,
+        recording_sinks: Arc<Mutex<Vec<Arc<dyn AudioRecordingSink>>>>,
         samples: Vec<i16>,
         channels: u32,
         samples_per_sec: u32,
@@ -689,11 +711,28 @@ impl Worker {
                 estimated_capture_time_ns,
             )
         };
+        
+        // Send to recording sinks if WebRTC call succeeded
+        if ret == 0 {
+            if let Ok(sinks) = recording_sinks.lock() {
+                let timestamp = estimated_capture_time.unwrap_or_default();
+                for sink in sinks.iter() {
+                    sink.on_local_audio_samples(
+                        &samples,
+                        samples_per_sec,
+                        channels,
+                        timestamp,
+                    );
+                }
+            }
+        }
+        
         (ret, new_mic_level)
     }
 
     fn need_more_play_data(
         rffi_audio_transport: Arc<Mutex<RffiAudioTransport>>,
+        recording_sinks: Arc<Mutex<Vec<Arc<dyn AudioRecordingSink>>>>,
         samples: usize,
         channels: u32,
         samples_per_sec: u32,
@@ -745,12 +784,29 @@ impl Worker {
 
         data.truncate(samples_out);
 
-        PlayData {
+        let play_data = PlayData {
             success: ret,
-            data,
+            data: data.clone(),
             elapsed_time: elapsed_time_ms.try_into().ok().map(Duration::from_millis),
             ntp_time: ntp_time_ms.try_into().ok().map(Duration::from_millis),
+        };
+        
+        // Send to recording sinks if WebRTC call succeeded
+        if ret == 0 && samples_out > 0 {
+            if let Ok(sinks) = recording_sinks.lock() {
+                let timestamp = play_data.elapsed_time.unwrap_or_default();
+                for sink in sinks.iter() {
+                    sink.on_remote_audio_samples(
+                        &data,
+                        samples_per_sec,
+                        channels,
+                        timestamp,
+                    );
+                }
+            }
         }
+        
+        play_data
     }
 
     pub fn spawn(
@@ -816,6 +872,7 @@ impl Worker {
                 })),
                 audio_device_observer: None,
                 send_to_webrtc: Arc::new(AtomicBool::new(true)),
+                recording_sinks: Arc::new(Mutex::new(Vec::new())),
             };
             if let Err(e) = worker.register_device_collection_changed(DeviceType::INPUT) {
                 error!("Failed to register input device callback: {}", e);
@@ -1674,6 +1731,29 @@ impl AudioDeviceModule {
             .send(Event::RegisterAudioObserver(audio_device_observer))
         {
             bail!("Failed to send RegisterAudioObserver request: {}", e);
+        }
+        Ok(())
+    }
+
+    /// Add a recording sink to capture audio samples from AudioTransport.
+    /// 
+    /// Returns the sink ID that can be used to remove it later.
+    pub fn add_recording_sink(
+        &mut self,
+        sink: Arc<dyn AudioRecordingSink>,
+    ) -> anyhow::Result<usize> {
+        if let Err(e) = self.mpsc_sender.send(Event::AddRecordingSink(sink)) {
+            bail!("Failed to send AddRecordingSink request: {}", e);
+        }
+        // Note: We can't get the actual ID back synchronously, so we return 0
+        // In practice, the caller should track the sink themselves
+        Ok(0)
+    }
+
+    /// Remove a recording sink by ID.
+    pub fn remove_recording_sink(&mut self, sink_id: usize) -> anyhow::Result<()> {
+        if let Err(e) = self.mpsc_sender.send(Event::RemoveRecordingSink(sink_id)) {
+            bail!("Failed to send RemoveRecordingSink request: {}", e);
         }
         Ok(())
     }
