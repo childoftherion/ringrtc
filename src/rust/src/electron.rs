@@ -23,6 +23,7 @@ use neon::{
 };
 use strum::IntoDiscriminant;
 
+use anyhow::anyhow;
 use crate::{
     common::{CallConfig, CallId, CallMediaType, DataMode, DeviceId, Result},
     core::{
@@ -45,6 +46,7 @@ use crate::{
         NativePlatform, PeerId, RejectReason, SignalingSender,
     },
     webrtc::{
+        audio_recording::MediaStreamAudioSink,
         media::{AudioTrack, VideoFrame, VideoPixelFormat, VideoSink, VideoSource, VideoTrack},
         peer_connection::AudioLevel,
         peer_connection_factory::{
@@ -396,6 +398,9 @@ pub struct CallEndpoint {
 
     peer_connection_factory: PeerConnectionFactory,
 
+    // Recording sinks for call recording functionality
+    recording_sinks: Arc<Mutex<HashMap<CallId, (Arc<MediaStreamAudioSink>, usize)>>>,
+
     // NOTE: This creates a reference cycle, since the JS-side NativeCallManager has a reference
     // to the CallEndpoint box. Since we use the NativeCallManager as a singleton, though, this
     // isn't a problem in practice (except maybe for tests).
@@ -517,6 +522,7 @@ impl CallEndpoint {
             outgoing_video_track,
             incoming_video_sink,
             peer_connection_factory,
+            recording_sinks: Arc::new(Mutex::new(HashMap::new())),
             js_object,
             most_recent_overlarge_frame_dimensions: (0, 0),
         })

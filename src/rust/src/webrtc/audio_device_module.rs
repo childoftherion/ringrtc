@@ -80,7 +80,6 @@ struct PlayData {
 type Frame = MonoFrame<i16>;
 type OutFrame = StereoFrame<i16>;
 
-#[derive(Debug)]
 enum Event {
     RefreshCache(DeviceType),
     SetCallback(Arc<Mutex<RffiAudioTransport>>),
@@ -100,6 +99,32 @@ enum Event {
     RegisterAudioObserver(Box<dyn AudioDeviceObserver>),
     AddRecordingSink(Arc<dyn AudioRecordingSink>),
     RemoveRecordingSink(usize),
+}
+
+// Manual Debug implementation for Event to handle AudioRecordingSink
+impl std::fmt::Debug for Event {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Event::RefreshCache(dt) => f.debug_tuple("RefreshCache").field(dt).finish(),
+            Event::SetCallback(_) => f.debug_tuple("SetCallback").field(&"<Arc<Mutex<RffiAudioTransport>>>").finish(),
+            Event::SetPlayoutDevice(v) => f.debug_tuple("SetPlayoutDevice").field(v).finish(),
+            Event::SetPlayoutDeviceById(s) => f.debug_tuple("SetPlayoutDeviceById").field(s).finish(),
+            Event::SetRecordingDevice(v) => f.debug_tuple("SetRecordingDevice").field(v).finish(),
+            Event::SetRecordingDeviceById(s) => f.debug_tuple("SetRecordingDeviceById").field(s).finish(),
+            Event::InitPlayout => write!(f, "InitPlayout"),
+            Event::StartPlayout => write!(f, "StartPlayout"),
+            Event::StopPlayout => write!(f, "StopPlayout"),
+            Event::InitRecording => write!(f, "InitRecording"),
+            Event::StartRecording => write!(f, "StartRecording"),
+            Event::WarmupRecording => write!(f, "WarmupRecording"),
+            Event::StopRecording => write!(f, "StopRecording"),
+            Event::PlayoutDelay => write!(f, "PlayoutDelay"),
+            Event::Terminate => write!(f, "Terminate"),
+            Event::RegisterAudioObserver(_) => f.debug_tuple("RegisterAudioObserver").field(&"<Box<dyn AudioDeviceObserver>>").finish(),
+            Event::AddRecordingSink(_) => f.debug_tuple("AddRecordingSink").field(&"<Arc<dyn AudioRecordingSink>>").finish(),
+            Event::RemoveRecordingSink(id) => f.debug_tuple("RemoveRecordingSink").field(id).finish(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -285,6 +310,7 @@ impl Worker {
             .take();
         let mut builder = cubeb::StreamBuilder::<OutFrame>::new();
         let transport = Arc::clone(&self.audio_transport);
+        let recording_sinks = Arc::clone(&self.recording_sinks);
         let min_latency = self.ctx.min_latency(&params).unwrap_or_else(|e| {
             warn!(
                 "Could not get min latency for playout; using default: {:?}",
@@ -328,7 +354,7 @@ impl Worker {
                 while written < output.len() {
                     let play_data = Worker::need_more_play_data(
                         Arc::clone(&transport),
-                        Arc::clone(&self.recording_sinks),
+                        Arc::clone(&recording_sinks),
                         WEBRTC_WINDOW,
                         NUM_CHANNELS,
                         SAMPLE_FREQUENCY,
@@ -427,6 +453,7 @@ impl Worker {
         .take();
         let mut builder = cubeb::StreamBuilder::<Frame>::new();
         let transport = Arc::clone(&self.audio_transport);
+        let recording_sinks = Arc::clone(&self.recording_sinks);
         let min_latency = self.ctx.min_latency(&params).unwrap_or_else(|e| {
             warn!(
                 "Could not get min latency for recording; using default: {:?}",
@@ -470,7 +497,7 @@ impl Worker {
                     }
                     let (ret, _new_mic_level) = Worker::recorded_data_is_available(
                         Arc::clone(&transport),
-                        Arc::clone(&self.recording_sinks),
+                        Arc::clone(&recording_sinks),
                         chunk.to_vec(),
                         NUM_CHANNELS,
                         SAMPLE_FREQUENCY,
@@ -645,9 +672,9 @@ impl Worker {
                     self.audio_device_observer = Some(audio_device_observer);
                     continue;
                 }
-                Event::AddRecordingSink(sink) => {
+                Event::AddRecordingSink(ref sink) => {
                     let mut sinks = self.recording_sinks.lock().unwrap();
-                    sinks.push(sink);
+                    sinks.push(Arc::clone(sink));
                     Ok(())
                 }
                 Event::RemoveRecordingSink(sink_id) => {
@@ -660,7 +687,7 @@ impl Worker {
                     }
                 }
             } {
-                warn!("{:?} failed: {:?}", received, e);
+                warn!("Event failed: {:?}", e);
             }
         }
     }
