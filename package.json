@@ -17,7 +17,7 @@
     "src/node/build/**/*.node"
   ],
   "scripts": {
-    "postinstall": "cd src/node && npm install"
+    "install": "cd src/node && node scripts/fetch-prebuild.js"
   }
 }
 
