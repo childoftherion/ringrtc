@@ -1,0 +1,17 @@
+{
+  "name": "@signalapp/ringrtc",
+  "version": "2.60.1",
+  "private": true,
+  "description": "Signal Messenger voice and video calling library - Root package pointing to src/node",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/childoftherion/ringrtc.git"
+  },
+  "scripts": {
+    "install": "cd src/node && npm install"
+  },
+  "workspaces": [
+    "src/node"
+  ]
+}
+
