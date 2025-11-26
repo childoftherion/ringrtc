@@ -16,10 +16,9 @@ Pod::Spec.new do |s|
   DESC
 
   s.license          = 'AGPLv3'
-  s.homepage         = 'https://github.com/signalapp/ringrtc'
-  s.source           = { git: 'https://github.com/signalapp/ringrtc.git', tag: "v#{s.version.to_s}" }
+  s.homepage         = 'https://github.com/childoftherion/ringrtc'
+  s.source           = { git: 'https://github.com/childoftherion/ringrtc.git', tag: "v#{s.version.to_s}" }
   s.author           = { 'Calling Team': 'callingteam@signal.org' }
-  s.social_media_url = 'https://twitter.com/signalapp'
 
   # Newer versions of Xcode don't correctly handle command-line testing on older simulators.
   s.platform      = :ios, ENV.include?('RINGRTC_POD_TESTING') ? '14' : '13'

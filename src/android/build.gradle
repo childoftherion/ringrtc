@@ -92,12 +92,12 @@ afterEvaluate {
                     name = 'ringrtc-android'
                     packaging = 'aar'
                     description = 'RingRTC for Android'
-                    url = 'https://github.com/signalapp/ringrtc/'
+                    url = 'https://github.com/childoftherion/ringrtc/'
 
                     scm {
-                        url = 'https://github.com/signalapp/ringrtc/'
-                        connection = 'scm:git:git@github.com:signalapp/ringrtc.git'
-                        developerConnection = 'scm:git:git@github.com:signalapp/ringrtc.git'
+                        url = 'https://github.com/childoftherion/ringrtc/'
+                        connection = 'scm:git:git@github.com:childoftherion/ringrtc.git'
+                        developerConnection = 'scm:git:git@github.com:childoftherion/ringrtc.git'
                     }
 
                     licenses {
