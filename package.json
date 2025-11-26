@@ -17,7 +17,7 @@
     "src/node/build/**/*.node"
   ],
   "scripts": {
-    "install": "cd src/node && node scripts/fetch-prebuild.js"
+    "install": "cd src/node && npm_package_json=\"$(pwd)/package.json\" npm_package_version=$(grep -o '\"version\": \"[^\"]*\"' package.json | cut -d'\"' -f4) node scripts/fetch-prebuild.js"
   }
 }
 
