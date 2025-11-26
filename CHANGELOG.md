@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.60.3
+
+- Retry build
+
+## v2.60.2
+
+- Improve call summary stats handling
+
 ## v2.60.1
 
 - Desktop: Retry build
