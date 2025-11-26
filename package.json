@@ -16,9 +16,6 @@
     "src/node/dist/acknowledgments.md",
     "src/node/build/**/*.node"
   ],
-  "bin": {
-    "virtual_audio": "./src/node/dist/bin/virtual_audio.sh"
-  },
   "scripts": {
     "postinstall": "cd src/node && npm install"
   }
