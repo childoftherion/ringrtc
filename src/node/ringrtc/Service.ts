@@ -2251,7 +2251,9 @@ export class Call {
     maxWidth: number,
     maxHeight: number
   ): [number, number] | undefined {
-    return this._callManager.receiveVideoFrame(buffer, maxWidth, maxHeight);
+    const result = this._callManager.receiveVideoFrame(buffer, maxWidth, maxHeight);
+    // Note: Logging is done at the native level, but we can add TypeScript-level logging if needed
+    return result;
   }
 
   updateDataMode(dataMode: DataMode): void {

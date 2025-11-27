@@ -536,6 +536,12 @@ struct LastFramesVideoSink {
 
 impl VideoSink for LastFramesVideoSink {
     fn on_video_frame(&self, demux_id: DemuxId, frame: VideoFrame) {
+        debug!(
+            "LastFramesVideoSink::on_video_frame: demux_id={}, width={}, height={}",
+            demux_id,
+            frame.width(),
+            frame.height()
+        );
         self.last_frame_by_demux_id
             .lock()
             .unwrap()
@@ -1401,6 +1407,14 @@ fn receive_video_frame<'a>(
 ) -> JsResult<'a, JsValue> {
     let frame = with_call_endpoint(cx, |endpoint| {
         if let Some(frame) = endpoint.incoming_video_sink.pop(demux_id) {
+            debug!(
+                "receive_video_frame: Retrieved frame for demux_id={}, width={}, height={}, max_width={}, max_height={}",
+                demux_id,
+                frame.width(),
+                frame.height(),
+                max_width,
+                max_height
+            );
             // For max dimensions of e.g. 1920x1080, also allow 1080x1920,
             // in case someone has HD portrait video.
             let (frame_short, frame_long) = minmax(frame.width(), frame.height());
@@ -1417,6 +1431,11 @@ fn receive_video_frame<'a>(
                 );
                 endpoint.most_recent_overlarge_frame_dimensions = (frame_short, frame_long);
             }
+        } else {
+            trace!(
+                "receive_video_frame: No frame available for demux_id={}",
+                demux_id
+            );
         }
         None
     });
@@ -1426,11 +1445,17 @@ fn receive_video_frame<'a>(
         frame.to_rgba(rgba_buffer.as_mut_slice(cx));
         let js_width = cx.number(frame.width());
         let js_height = cx.number(frame.height());
+        debug!(
+            "receive_video_frame: Returning frame dimensions width={}, height={}",
+            frame.width(),
+            frame.height()
+        );
         let result = JsArray::new(cx, 2);
         result.set(cx, 0, js_width)?;
         result.set(cx, 1, js_height)?;
         Ok(result.upcast())
     } else {
+        trace!("receive_video_frame: No frame to return");
         Ok(cx.undefined().upcast())
     }
 }

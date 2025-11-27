@@ -2183,7 +2183,18 @@ where
         if let (Some(incoming_video_sink), Some(video_frame)) =
             (self.incoming_video_sink.as_ref(), video_frame)
         {
+            debug!(
+                "Connection::handle_incoming_video_frame: demux_id={}, width={}, height={}",
+                demux_id,
+                video_frame.width(),
+                video_frame.height()
+            );
             incoming_video_sink.on_video_frame(demux_id, video_frame)
+        } else {
+            trace!(
+                "Connection::handle_incoming_video_frame: No sink or frame for demux_id={}",
+                demux_id
+            );
         }
         Ok(())
     }
