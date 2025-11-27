@@ -3314,5 +3314,7 @@ fn register(mut cx: ModuleContext) -> NeonResult<()> {
     cx.export_function("cm_setAudioOutput", setAudioOutput)?;
     cx.export_function("cm_setRtcStatsInterval", setRtcStatsInterval)?;
     cx.export_function("cm_processEvents", processEvents)?;
+    cx.export_function("cm_startCallRecording", startCallRecording)?;
+    cx.export_function("cm_stopCallRecording", stopCallRecording)?;
     Ok(())
 }

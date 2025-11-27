@@ -169,6 +169,10 @@ class NativeCallManager {
 (NativeCallManager.prototype as any).processEvents = Native.cm_processEvents;
 (NativeCallManager.prototype as any).setRtcStatsInterval =
   Native.cm_setRtcStatsInterval;
+(NativeCallManager.prototype as any).startCallRecording =
+  Native.cm_startCallRecording;
+(NativeCallManager.prototype as any).stopCallRecording =
+  Native.cm_stopCallRecording;
 
 type GroupId = Uint8Array;
 type GroupCallUserId = Uint8Array;
@@ -3010,6 +3014,8 @@ export interface CallManager {
     body: Uint8Array
   ): void;
   httpRequestFailed(requestId: number, debugInfo: string | undefined): void;
+  startCallRecording(callId: CallId): void;
+  stopCallRecording(callId: CallId): void;
 
   // Group Calls
 
