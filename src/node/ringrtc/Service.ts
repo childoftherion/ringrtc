@@ -175,6 +175,8 @@ class NativeCallManager {
   Native.cm_stopCallRecording;
 (NativeCallManager.prototype as any).getCallRecordingChunks =
   Native.cm_getCallRecordingChunks;
+(NativeCallManager.prototype as any).getCallRecordingVideoChunks =
+  Native.cm_getCallRecordingVideoChunks;
 
 type GroupId = Uint8Array;
 type GroupCallUserId = Uint8Array;
@@ -2281,6 +2283,26 @@ export class Call {
   }
 
   /**
+   * Get video chunks from the recording sink.
+   * 
+   * This method retrieves video chunks that have been captured by the recording sink.
+   * The chunks are drained from the buffer, so they should be processed immediately.
+   * 
+   * @param streamType - 'local' for outgoing video, 'remote' for incoming video
+   * @returns Array of video chunks with buffer, width, height, pixelFormat, and timestamp
+   */
+  getRecordingVideoChunks(streamType: 'local' | 'remote'): Array<{
+    buffer: Uint8Array;
+    width: number;
+    height: number;
+    pixelFormat: number;
+    timestampMs: number;
+    demuxId?: number;
+  }> {
+    return this._callManager.getCallRecordingVideoChunks(this.callId, streamType);
+  }
+
+  /**
    * Stop recording and clean up resources.
    */
   async stopRecording(): Promise<void> {
@@ -3094,6 +3116,17 @@ export interface CallManager {
     sampleRate: number;
     channels: number;
     timestampMs: number;
+  }>;
+  getCallRecordingVideoChunks(
+    callId: CallId,
+    streamType: 'local' | 'remote'
+  ): Array<{
+    buffer: Uint8Array;
+    width: number;
+    height: number;
+    pixelFormat: number;
+    timestampMs: number;
+    demuxId?: number;
   }>;
 
   // Group Calls

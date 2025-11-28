@@ -130,6 +130,7 @@ impl VideoPixelFormat {
     }
 }
 
+#[derive(Clone)]
 pub struct VideoFrame {
     metadata: VideoFrameMetadata,
     rffi_buffer: webrtc::Arc<media::RffiVideoFrameBuffer>,
