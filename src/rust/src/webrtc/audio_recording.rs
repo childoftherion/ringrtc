@@ -108,7 +108,7 @@ impl MediaStreamAudioSink {
         self.is_active.lock().map(|s| *s).unwrap_or(false)
     }
 
-    /// Get buffered local audio chunks.
+    /// Get buffered local audio chunks (copies them).
     pub fn get_local_chunks(&self) -> Vec<AudioChunk> {
         self.local_buffer
             .lock()
@@ -116,12 +116,58 @@ impl MediaStreamAudioSink {
             .unwrap_or_default()
     }
 
-    /// Get buffered remote audio chunks.
+    /// Get buffered remote audio chunks (copies them).
     pub fn get_remote_chunks(&self) -> Vec<AudioChunk> {
         self.remote_buffer
             .lock()
             .map(|buf| buf.iter().cloned().collect())
             .unwrap_or_default()
+    }
+
+    /// Drain local audio chunks (removes and returns them).
+    /// This is used for real-time streaming to avoid buffer overflow.
+    pub fn drain_local_chunks(&self) -> Vec<AudioChunk> {
+        self.local_buffer
+            .lock()
+            .map(|mut buf| {
+                let mut chunks = Vec::new();
+                while let Some(chunk) = buf.pop_front() {
+                    chunks.push(chunk);
+                }
+                chunks
+            })
+            .unwrap_or_default()
+    }
+
+    /// Drain remote audio chunks (removes and returns them).
+    /// This is used for real-time streaming to avoid buffer overflow.
+    pub fn drain_remote_chunks(&self) -> Vec<AudioChunk> {
+        self.remote_buffer
+            .lock()
+            .map(|mut buf| {
+                let mut chunks = Vec::new();
+                while let Some(chunk) = buf.pop_front() {
+                    chunks.push(chunk);
+                }
+                chunks
+            })
+            .unwrap_or_default()
+    }
+
+    /// Get the latest local audio chunk without removing it.
+    pub fn peek_latest_local_chunk(&self) -> Option<AudioChunk> {
+        self.local_buffer
+            .lock()
+            .ok()
+            .and_then(|buf| buf.back().cloned())
+    }
+
+    /// Get the latest remote audio chunk without removing it.
+    pub fn peek_latest_remote_chunk(&self) -> Option<AudioChunk> {
+        self.remote_buffer
+            .lock()
+            .ok()
+            .and_then(|buf| buf.back().cloned())
     }
 
     /// Get the sample rate.

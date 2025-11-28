@@ -173,6 +173,8 @@ class NativeCallManager {
   Native.cm_startCallRecording;
 (NativeCallManager.prototype as any).stopCallRecording =
   Native.cm_stopCallRecording;
+(NativeCallManager.prototype as any).getCallRecordingChunks =
+  Native.cm_getCallRecordingChunks;
 
 type GroupId = Uint8Array;
 type GroupCallUserId = Uint8Array;
@@ -2235,6 +2237,72 @@ export class Call {
     }
   }
 
+  /**
+   * Start recording the call using AudioTransport interface.
+   * 
+   * This method uses RingRTC's AudioTransport-based recording API to capture
+   * audio at the WebRTC engine level. It starts the recording sink in Rust.
+   * 
+   * MediaStream creation should be handled by the application layer (Signal-Desktop)
+   * using the getCallRecordingChunks() method to retrieve audio chunks.
+   * 
+   * @returns Promise that resolves when recording is started
+   */
+  async startRecording(): Promise<void> {
+    // Check if call is in a recordable state
+    // CallState enum values: 'idle', 'ringing', 'connected', 'connecting', 'ended'
+    if (this._state !== 'connected' && this._state !== 'connecting') {
+      throw new Error(`Cannot start recording: call is not in a recordable state (state: ${this._state})`);
+    }
+
+    // Use CallManager's startCallRecording method
+    // This creates a recording sink in the Rust layer
+    sillyDeadlockProtection(() => {
+      this._callManager.startCallRecording(this.callId);
+    });
+  }
+
+  /**
+   * Get audio chunks from the recording sink.
+   * 
+   * This method retrieves audio chunks that have been captured by the recording sink.
+   * The chunks are drained from the buffer, so they should be processed immediately.
+   * 
+   * @param streamType - 'local' for microphone audio, 'remote' for received audio
+   * @returns Array of audio chunks with samples, sampleRate, channels, and timestamp
+   */
+  getRecordingChunks(streamType: 'local' | 'remote'): Array<{
+    samples: Array<number>;
+    sampleRate: number;
+    channels: number;
+    timestampMs: number;
+  }> {
+    return this._callManager.getCallRecordingChunks(this.callId, streamType);
+  }
+
+  /**
+   * Stop recording and clean up resources.
+   */
+  async stopRecording(): Promise<void> {
+    sillyDeadlockProtection(() => {
+      this._callManager.stopCallRecording(this.callId);
+    });
+  }
+
+  /**
+   * Check if recording is currently active.
+   * 
+   * Note: This is a placeholder. Full implementation requires tracking
+   * recording state in the CallManager or Call object.
+   * 
+   * @returns true if recording is active, false otherwise
+   */
+  isRecording(): boolean {
+    // TODO: Track recording state properly
+    // For now, return false as we don't have state tracking yet
+    return false;
+  }
+
   // With this method, a Call is a VideoFrameSender
   sendVideoFrame(
     width: number,
@@ -3018,6 +3086,15 @@ export interface CallManager {
   httpRequestFailed(requestId: number, debugInfo: string | undefined): void;
   startCallRecording(callId: CallId): void;
   stopCallRecording(callId: CallId): void;
+  getCallRecordingChunks(
+    callId: CallId,
+    streamType: 'local' | 'remote'
+  ): Array<{
+    samples: Array<number>;
+    sampleRate: number;
+    channels: number;
+    timestampMs: number;
+  }>;
 
   // Group Calls
 

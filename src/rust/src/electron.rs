@@ -19,7 +19,7 @@ use std::{
 use lazy_static::lazy_static;
 use neon::{
     prelude::*,
-    types::{JsBigInt, buffer::TypedArray},
+    types::{JsBigInt, buffer::TypedArray, JsTypedArray},
 };
 use strum::IntoDiscriminant;
 
@@ -2412,6 +2412,54 @@ fn stopCallRecording(mut cx: FunctionContext) -> JsResult<JsValue> {
     Ok(cx.undefined().upcast())
 }
 
+/// Get audio chunks from the recording sink for a call.
+/// Returns an array of audio chunk objects with samples, sample_rate, channels, and timestamp.
+#[allow(non_snake_case)]
+fn getCallRecordingChunks(mut cx: FunctionContext) -> JsResult<JsValue> {
+    let call_id_high = cx.argument::<JsNumber>(0)?.value(&mut cx) as u64;
+    let call_id_low = cx.argument::<JsNumber>(1)?.value(&mut cx) as u64;
+    let call_id = CallId::new((call_id_high << 32) | call_id_low);
+    let stream_type = cx.argument::<JsString>(2)?.value(&mut cx); // "local" or "remote"
+    
+    let chunks = with_call_endpoint(&mut cx, |endpoint| {
+        let sinks = endpoint.recording_sinks.lock().unwrap();
+        if let Some((sink, _)) = sinks.get(&call_id) {
+            let audio_chunks = if stream_type == "local" {
+                sink.drain_local_chunks()
+            } else {
+                sink.drain_remote_chunks()
+            };
+            Ok(audio_chunks)
+        } else {
+            Ok(Vec::new())
+        }
+    })
+    .or_else(|err: anyhow::Error| cx.throw_error(format!("{}", err)))?;
+    
+    // Convert Rust audio chunks to JavaScript array
+    let js_array = JsArray::new(&mut cx, chunks.len());
+    for (i, chunk) in chunks.iter().enumerate() {
+        let js_chunk = cx.empty_object();
+        
+        // Convert i16 samples to JavaScript array
+        // We'll return as a regular array and let JavaScript create Int16Array
+        let samples_array = JsArray::new(&mut cx, chunk.samples.len());
+        for (j, &sample) in chunk.samples.iter().enumerate() {
+            samples_array.set(&mut cx, j as u32, cx.number(sample as f64))?;
+        }
+        js_chunk.set(&mut cx, "samples", samples_array)?;
+        
+        // Add metadata
+        js_chunk.set(&mut cx, "sampleRate", cx.number(chunk.sample_rate as f64))?;
+        js_chunk.set(&mut cx, "channels", cx.number(chunk.channels as f64))?;
+        js_chunk.set(&mut cx, "timestampMs", cx.number(chunk.timestamp.as_millis() as f64))?;
+        
+        js_array.set(&mut cx, i as u32, js_chunk)?;
+    }
+    
+    Ok(js_array.upcast())
+}
+
 fn devices_to_js_array<'a>(
     cx: &mut FunctionContext<'a>,
     devices: Vec<Option<AudioDevice>>,
@@ -3341,5 +3389,6 @@ fn register(mut cx: ModuleContext) -> NeonResult<()> {
     cx.export_function("cm_processEvents", processEvents)?;
     cx.export_function("cm_startCallRecording", startCallRecording)?;
     cx.export_function("cm_stopCallRecording", stopCallRecording)?;
+    cx.export_function("cm_getCallRecordingChunks", getCallRecordingChunks)?;
     Ok(())
 }
