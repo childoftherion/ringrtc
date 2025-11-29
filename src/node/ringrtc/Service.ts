@@ -2057,6 +2057,7 @@ export class Call {
   networkRoute: NetworkRoute = new NetworkRoute();
   endedReason?: CallEndReason;
   summary?: CallSummary;
+  private _recordingActive = false;
 
   // These callbacks should be set by the UX code.
   handleStateChanged?: () => void;
@@ -2069,8 +2070,7 @@ export class Call {
   /**
    * Notification of low upload bandwidth for sending video.
    *
-   * When this is first called, recovered will be false. The second call (if
-   * any) will have recovered set to true and will be called when the upload
+   * When this is first called, recovered will be false. The second call (if any) will have recovered set to true and will be called when the upload
    * bandwidth is high enough to send video.
    *
    * @param recovered - whether there is enough bandwidth to send video reliably
@@ -2153,6 +2153,12 @@ export class Call {
         this._outgoingVideoEnabled = false;
         this._outgoingVideoIsScreenShare = false;
         this._mediaSessionStarted = false;
+      }
+
+      if (this._recordingActive) {
+        void this.stopRecording().catch(() => {
+          // Swallow errors here; call is ending anyway.
+        });
       }
     }
 
@@ -2251,17 +2257,32 @@ export class Call {
    * @returns Promise that resolves when recording is started
    */
   async startRecording(): Promise<void> {
-    // Check if call is in a recordable state
-    // CallState enum values: 'idle', 'ringing', 'connected', 'connecting', 'ended'
-    if (this._state !== 'connected' && this._state !== 'connecting') {
-      throw new Error(`Cannot start recording: call is not in a recordable state (state: ${this._state})`);
+    if (typeof this._callManager.startCallRecording !== 'function') {
+      throw new Error(
+        'RingRTC Call.startRecording() not available. AudioTransport API may not be implemented yet.'
+      );
     }
 
-    // Use CallManager's startCallRecording method
-    // This creates a recording sink in the Rust layer
+    // Already recording? Nothing to do.
+    if (this._recordingActive) {
+      return;
+    }
+
+    // Check if call is in a recordable state
+    if (
+      this._state !== CallState.Accepted &&
+      this._state !== CallState.Reconnecting
+    ) {
+      throw new Error(
+        `Cannot start recording: call is not in a recordable state (state: ${this._state})`
+      );
+    }
+
     sillyDeadlockProtection(() => {
       this._callManager.startCallRecording(this.callId);
     });
+
+    this._recordingActive = true;
   }
 
   /**
@@ -2306,9 +2327,20 @@ export class Call {
    * Stop recording and clean up resources.
    */
   async stopRecording(): Promise<void> {
+    if (!this._recordingActive) {
+      return;
+    }
+
+    if (typeof this._callManager.stopCallRecording !== 'function') {
+      this._recordingActive = false;
+      return;
+    }
+
     sillyDeadlockProtection(() => {
       this._callManager.stopCallRecording(this.callId);
     });
+
+    this._recordingActive = false;
   }
 
   /**
@@ -2320,9 +2352,7 @@ export class Call {
    * @returns true if recording is active, false otherwise
    */
   isRecording(): boolean {
-    // TODO: Track recording state properly
-    // For now, return false as we don't have state tracking yet
-    return false;
+    return this._recordingActive;
   }
 
   // With this method, a Call is a VideoFrameSender

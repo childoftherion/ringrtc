@@ -49,11 +49,15 @@ pub trait AudioRecordingSink: Send + Sync {
 
 /// Audio chunk with metadata for buffering and synchronization.
 #[derive(Clone, Debug)]
-struct AudioChunk {
-    samples: Vec<i16>,
-    timestamp: Duration,
-    sample_rate: u32,
-    channels: u32,
+pub struct AudioChunk {
+    /// Audio samples (i16 format)
+    pub samples: Vec<i16>,
+    /// Timestamp of the audio samples
+    pub timestamp: Duration,
+    /// Sample rate in Hz (typically 48000)
+    pub sample_rate: u32,
+    /// Number of audio channels (typically 1 for mono, 2 for stereo)
+    pub channels: u32,
 }
 
 /// Recording sink that buffers audio samples for conversion to MediaStream.

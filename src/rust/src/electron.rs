@@ -19,7 +19,7 @@ use std::{
 use lazy_static::lazy_static;
 use neon::{
     prelude::*,
-    types::{JsBigInt, buffer::TypedArray, JsTypedArray},
+    types::{JsBigInt, buffer::TypedArray},
 };
 use strum::IntoDiscriminant;
 
@@ -495,7 +495,7 @@ impl CallEndpoint {
         let incoming_video_sink = {
             let mut sink = LastFramesVideoSink::default();
             sink.set_video_recording_sinks(Arc::clone(&video_recording_sinks));
-            Box::new(sink) as Box<dyn VideoSink>
+            Box::new(sink)
         };
 
         // After initializing logs, log the backend in use.
@@ -577,16 +577,19 @@ impl VideoSink for LastFramesVideoSink {
             frame.width(),
             frame.height()
         );
-        // Store frame for later retrieval
+        // Store frame for later retrieval (this is critical for video display)
+        // Store the original frame first to ensure it's available for display
         self.last_frame_by_demux_id
             .lock()
             .unwrap()
             .insert(demux_id, frame.clone());
         
-        // Also forward to video recording sinks (need to clone for each sink)
+        // Also forward to video recording sinks (clone for each sink to avoid ownership issues)
+        // This happens after storing the frame, so display is not affected
         if let Ok(sinks) = self.video_recording_sinks.lock() {
             for (_, sink) in sinks.iter() {
                 if sink.is_active() {
+                    // Clone frame for recording - this doesn't affect the stored frame
                     sink.on_remote_video_frame(demux_id, frame.clone());
                 }
             }
@@ -2500,14 +2503,18 @@ fn getCallRecordingChunks(mut cx: FunctionContext) -> JsResult<JsValue> {
         // We'll return as a regular array and let JavaScript create Int16Array
         let samples_array = JsArray::new(&mut cx, chunk.samples.len());
         for (j, &sample) in chunk.samples.iter().enumerate() {
-            samples_array.set(&mut cx, j as u32, cx.number(sample as f64))?;
+            let js_sample = cx.number(sample as f64);
+            samples_array.set(&mut cx, j as u32, js_sample)?;
         }
         js_chunk.set(&mut cx, "samples", samples_array)?;
         
-        // Add metadata
-        js_chunk.set(&mut cx, "sampleRate", cx.number(chunk.sample_rate as f64))?;
-        js_chunk.set(&mut cx, "channels", cx.number(chunk.channels as f64))?;
-        js_chunk.set(&mut cx, "timestampMs", cx.number(chunk.timestamp.as_millis() as f64))?;
+        // Add metadata - create values first to avoid multiple mutable borrows
+        let sample_rate = cx.number(chunk.sample_rate as f64);
+        js_chunk.set(&mut cx, "sampleRate", sample_rate)?;
+        let channels = cx.number(chunk.channels as f64);
+        js_chunk.set(&mut cx, "channels", channels)?;
+        let timestamp_ms = cx.number(chunk.timestamp.as_millis() as f64);
+        js_chunk.set(&mut cx, "timestampMs", timestamp_ms)?;
         
         js_array.set(&mut cx, i as u32, js_chunk)?;
     }
@@ -2544,18 +2551,22 @@ fn getCallRecordingVideoChunks(mut cx: FunctionContext) -> JsResult<JsValue> {
     for (i, chunk) in chunks.iter().enumerate() {
         let js_chunk = cx.empty_object();
         
-        // Convert buffer to JavaScript Uint8Array
-        let buffer_array = JsUint8Array::new(&mut cx, chunk.buffer.len());
-        buffer_array.as_slice(&mut cx).copy_from_slice(&chunk.buffer);
+        // Convert buffer to JavaScript Uint8Array using from_slice
+        let buffer_array = JsUint8Array::from_slice(&mut cx, &chunk.buffer)?;
         js_chunk.set(&mut cx, "buffer", buffer_array)?;
         
-        // Add metadata
-        js_chunk.set(&mut cx, "width", cx.number(chunk.width as f64))?;
-        js_chunk.set(&mut cx, "height", cx.number(chunk.height as f64))?;
-        js_chunk.set(&mut cx, "pixelFormat", cx.number(chunk.pixel_format as i32 as f64))?;
-        js_chunk.set(&mut cx, "timestampMs", cx.number(chunk.timestamp.as_millis() as f64))?;
+        // Add metadata - create values first to avoid multiple mutable borrows
+        let width = cx.number(chunk.width as f64);
+        js_chunk.set(&mut cx, "width", width)?;
+        let height = cx.number(chunk.height as f64);
+        js_chunk.set(&mut cx, "height", height)?;
+        let pixel_format = cx.number(chunk.pixel_format as i32 as f64);
+        js_chunk.set(&mut cx, "pixelFormat", pixel_format)?;
+        let timestamp_ms = cx.number(chunk.timestamp.as_millis() as f64);
+        js_chunk.set(&mut cx, "timestampMs", timestamp_ms)?;
         if let Some(demux_id) = chunk.demux_id {
-            js_chunk.set(&mut cx, "demuxId", cx.number(demux_id as f64))?;
+            let js_demux_id = cx.number(demux_id as f64);
+            js_chunk.set(&mut cx, "demuxId", js_demux_id)?;
         }
         
         js_array.set(&mut cx, i as u32, js_chunk)?;

@@ -256,7 +256,7 @@ impl RecordingVideoSink {
         }
     }
 
-    pub fn remove_recording_sink(&self, sink: Arc<dyn VideoRecordingSink>) {
+    pub fn remove_recording_sink(&self, sink: &Arc<dyn VideoRecordingSink>) {
         if let Ok(mut sinks) = self.recording_sinks.lock() {
             sinks.retain(|s| !Arc::ptr_eq(s, sink));
         }
