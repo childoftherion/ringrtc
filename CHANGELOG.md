@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.60.7
+
+- Desktop: Don't bubble up active call not found error
+
+## v2.60.6
+
+- Desktop: Fix audio mute state after call ends
+
 ## v2.60.5
 
 - Fix packet loss calculation
