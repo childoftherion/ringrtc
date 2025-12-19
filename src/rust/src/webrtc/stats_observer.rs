@@ -540,7 +540,7 @@ impl Display for VideoReceiverStatsSnapshot {
             {key_frames_decoded},\
             {decode_time_per_frame:.1}ms,\
             {width}x{height},\
-            {jitter}ms",
+            {jitter:.0}ms",
             Self::LOG_MARKER,
         )
     }
@@ -695,7 +695,7 @@ impl Display for SystemStatsSnapshot {
         write!(
             f,
             "{},\
-            {cpu_pct:.0}",
+            {cpu_pct:.0}%",
             Self::LOG_MARKER
         )
     }
@@ -786,6 +786,7 @@ impl StatsObserver {
 
         #[cfg(not(target_os = "android"))]
         {
+            self.system_stats.refresh_cpu_usage();
             let system_stats_snapshot = SystemStatsSnapshot::derive(&self.system_stats);
             info!("{system_stats_snapshot}");
             self.stats_snapshot_consumer
@@ -892,7 +893,10 @@ impl StatsObserver {
             })
             .collect();
 
-        if self.stats_received_count % CLEAN_UP_STATS_TICKS == 0 {
+        if self
+            .stats_received_count
+            .is_multiple_of(CLEAN_UP_STATS_TICKS)
+        {
             self.remove_old_stats();
         }
     }

@@ -469,11 +469,7 @@ impl CallTelemetry {
             (None, None)
         } else {
             let blob = self.encode_to_vec();
-            let text = if cfg!(debug_assertions) {
-                serde_json::to_string(&self).ok()
-            } else {
-                None
-            };
+            let text = serde_json::to_string(&self).ok();
             (Some(blob), text)
         }
     }
@@ -604,15 +600,19 @@ impl From<&QualityStatsSketches> for QualityStats {
                 rtt_median: get_median(&sketches.audio.rtt),
                 jitter_median_send: get_median(&sketches.audio.jitter_send),
                 jitter_median_recv: get_median(&sketches.audio.jitter_recv),
-                packet_loss_fraction_send: get_median(&sketches.audio.packet_loss_send),
-                packet_loss_fraction_recv: get_median(&sketches.audio.packet_loss_recv),
+                packet_loss_fraction_send: get_median(&sketches.audio.packet_loss_send)
+                    .map(|v| v / 100.0),
+                packet_loss_fraction_recv: get_median(&sketches.audio.packet_loss_recv)
+                    .map(|v| v / 100.0),
             },
             video_stats: MediaQualityStats {
                 rtt_median: get_median(&sketches.video.rtt),
                 jitter_median_send: get_median(&sketches.video.jitter_send),
                 jitter_median_recv: get_median(&sketches.video.jitter_recv),
-                packet_loss_fraction_send: get_median(&sketches.video.packet_loss_send),
-                packet_loss_fraction_recv: get_median(&sketches.video.packet_loss_recv),
+                packet_loss_fraction_send: get_median(&sketches.video.packet_loss_send)
+                    .map(|v| v / 100.0),
+                packet_loss_fraction_recv: get_median(&sketches.video.packet_loss_recv)
+                    .map(|v| v / 100.0),
             },
         }
     }

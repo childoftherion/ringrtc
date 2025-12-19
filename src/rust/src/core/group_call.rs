@@ -457,16 +457,16 @@ impl JoinState {
 // the SFU (not being able to connect until after joined), it's
 // also more convenient to call GroupCall::start_peer_connection
 // with a state separate from those 2.
+#[derive(Default)]
 enum DheState {
+    #[default]
     NotYetStarted,
-    WaitingForServerPublicKey { client_secret: EphemeralSecret },
-    Negotiated { srtp_keys: SrtpKeys },
-}
-
-impl Default for DheState {
-    fn default() -> Self {
-        Self::NotYetStarted
-    }
+    WaitingForServerPublicKey {
+        client_secret: EphemeralSecret,
+    },
+    Negotiated {
+        srtp_keys: SrtpKeys,
+    },
 }
 
 impl DheState {
@@ -4909,7 +4909,7 @@ impl PeerConnectionObserverTrait for PeerConnectionObserverImpl {
         Ok(())
     }
 
-    fn handle_ice_candidates_removed(&mut self, _removed_addresses: Vec<SocketAddr>) -> Result<()> {
+    fn handle_ice_candidate_removed(&mut self, _removed_address: SocketAddr) -> Result<()> {
         Ok(())
     }
 
@@ -7706,7 +7706,7 @@ mod tests {
         .encode_to_vec();
         assert_eq!(2503, expected_proto.len());
 
-        let expected_packets = vec![
+        let expected_packets = [
             DeviceToSfu {
                 mrp_header: Some(MrpHeader {
                     seqnum: Some(1),

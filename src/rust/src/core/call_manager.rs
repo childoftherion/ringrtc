@@ -228,10 +228,12 @@ enum ReceivedOfferCollision {
 /// Management of 1:1 call messages that arrive before the offer for a particular call.
 ///
 /// We don't save all message kinds here, only the ones that can affect an incoming call.
+#[derive(Default)]
 enum PendingCallMessages<T>
 where
     T: Platform,
 {
+    #[default]
     None,
     IceCandidates {
         remote_peer: <T as Platform>::AppRemotePeer,
@@ -316,15 +318,6 @@ where
             call_id: new_call_id,
             received: new_received,
         }
-    }
-}
-
-impl<T> Default for PendingCallMessages<T>
-where
-    T: Platform,
-{
-    fn default() -> Self {
-        Self::None
     }
 }
 
@@ -1001,7 +994,7 @@ where
     /// Terminates Call and optionally notifies application of the reason why.
     /// Also removes/drops it from the map.
     fn terminate_and_drop_call(&mut self, call_id: CallId) -> Result<()> {
-        info!("terminate_call(): call_id: {}", call_id);
+        info!("terminate_and_drop_call(): call_id: {}", call_id);
 
         let mut call = match self.call_by_call_id.lock()?.remove(&call_id) {
             Some(v) => v,
